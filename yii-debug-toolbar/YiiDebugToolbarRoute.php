@@ -1,4 +1,5 @@
 <?php
+
 /**
  * YiiDebugToolbarRouter class file.
  *
@@ -34,7 +35,7 @@ class YiiDebugToolbarRoute extends CLogRoute
      * - a CIDR mask (192.168.0.0/24)
      * - "*" for everything.
      */
-    public $ipFilters=array('127.0.0.1','::1');
+    public $ipFilters = array('127.0.0.1', '::1');
 
     /**
      * If true, then after reloading the page will open the current panel.
@@ -49,17 +50,17 @@ class YiiDebugToolbarRoute extends CLogRoute
      * @var array of content type strings (in lower case)
      */
     public $contentTypeWhitelist = array(
-      // Yii framework doesn't seem to send content-type header by default.
-      '',
-      'text/html',
-      'application/xhtml+xml',
+        // Yii framework doesn't seem to send content-type header by default.
+        '',
+        'text/html',
+        'application/xhtml+xml',
     );
-
-    private $_toolbarWidget,
-            $_startTime,
-            $_endTime;
-
-
+    private $_toolbarWidget;
+    
+    private $_startTime;
+    
+    private $_endTime;
+    
     private $_proxyMap = array(
         'viewRenderer' => 'YiiDebugViewRenderer'
     );
@@ -87,7 +88,7 @@ class YiiDebugToolbarRoute extends CLogRoute
 
     public function getLoadTime()
     {
-        return ($this->endTime-$this->startTime);
+        return ($this->endTime - $this->startTime);
     }
 
     protected function getToolbarWidget()
@@ -95,19 +96,17 @@ class YiiDebugToolbarRoute extends CLogRoute
         if (null === $this->_toolbarWidget)
         {
             $this->_toolbarWidget = Yii::createComponent(array(
-                'class'=>'YiiDebugToolbar',
-                'panels'=> $this->panels
-            ), $this);
+                        'class' => 'YiiDebugToolbar',
+                        'panels' => $this->panels
+                            ), $this);
         }
         return $this->_toolbarWidget;
     }
 
     public function init()
     {
-        $this->_startTime=microtime(true);
-
+        $this->_startTime = microtime(true);
         parent::init();
-
         $this->enabled && $this->enabled = ($this->allowIp(Yii::app()->request->userHostAddress)
                 && !Yii::app()->getRequest()->getIsAjaxRequest() && (Yii::app() instanceof CWebApplication));
 
@@ -121,7 +120,7 @@ class YiiDebugToolbarRoute extends CLogRoute
                 'yii-debug-toolbar.components.*'
             ));
             $this->categories = '';
-            $this->levels='';
+            $this->levels = '';
         }
     }
 
@@ -130,12 +129,12 @@ class YiiDebugToolbarRoute extends CLogRoute
         $this->initComponents();
 
         $this->getToolbarWidget()
-             ->init();
+                ->init();
     }
 
     protected function initComponents()
     {
-        foreach ($this->_proxyMap as $name=>$class)
+        foreach ($this->_proxyMap as $name => $class)
         {
             $instance = Yii::app()->getComponent($name);
             if (null !== ($instance))
@@ -143,13 +142,12 @@ class YiiDebugToolbarRoute extends CLogRoute
                 Yii::app()->setComponent($name, null);
             }
             $this->_proxyMap[$name] = array(
-                'class'=>$class,
+                'class' => $class,
                 'instance' => $instance
             );
         }
         Yii::app()->setComponents($this->_proxyMap, false);
     }
-
 
     /**
      * Processes the current request.
@@ -158,23 +156,23 @@ class YiiDebugToolbarRoute extends CLogRoute
      */
     private function processRequest()
     {
-        if(is_array(Yii::app()->catchAllRequest) && isset(Yii::app()->catchAllRequest[0]))
+        if (is_array(Yii::app()->catchAllRequest) && isset(Yii::app()->catchAllRequest[0]))
         {
-            $route=Yii::app()->catchAllRequest[0];
-            foreach(array_splice(Yii::app()->catchAllRequest,1) as $name=>$value)
-                $_GET[$name]=$value;
+            $route = Yii::app()->catchAllRequest[0];
+            foreach (array_splice(Yii::app()->catchAllRequest, 1) as $name => $value)
+                $_GET[$name] = $value;
         }
         else
-            $route=Yii::app()->getUrlManager()->parseUrl(Yii::app()->getRequest());
+            $route = Yii::app()->getUrlManager()->parseUrl(Yii::app()->getRequest());
         Yii::app()->runController($route);
     }
 
     protected function onEndRequest(CEvent $event)
     {
-
+        
     }
 
-    public function collectLogs($logger, $processLogs=false)
+    public function collectLogs($logger, $processLogs = false)
     {
         parent::collectLogs($logger, $processLogs);
     }
@@ -189,19 +187,19 @@ class YiiDebugToolbarRoute extends CLogRoute
 
     private function checkContentTypeWhitelist()
     {
-      $contentType = '';
-
-      foreach (headers_list() as $header) {
-        list($key, $value) = explode(': ', $header);
-        if (strtolower($key) === 'content-type') {
-          // Split encoding if exists
-          $contentType = explode(";", strtolower($value));
-          $contentType = current($contentType);
-          break;
+        $contentType = '';
+        foreach (headers_list() as $header)
+        {
+            list($key, $value) = explode(': ', $header);
+            if ('content-type' === strtolower($key))
+            {
+                $value = explode(";", strtolower($value));
+                $contentType = current($value);
+                break;
+            }
         }
-      }
 
-      return in_array( $contentType, $this->contentTypeWhitelist );
+        return in_array($contentType, $this->contentTypeWhitelist);
     }
 
     /**
@@ -215,7 +213,8 @@ class YiiDebugToolbarRoute extends CLogRoute
         {
             $filter = trim($filter);
             // normal or incomplete IPv4
-            if (preg_match('/^[\d\.]*\*?$/', $filter)) {
+            if (preg_match('/^[\d\.]*\*?$/', $filter))
+            {
                 $filter = rtrim($filter, '*');
                 if (strncmp($ip, $filter, strlen($filter)) === 0)
                 {
@@ -248,7 +247,7 @@ class YiiDebugToolbarRoute extends CLogRoute
      */
     protected static function matchIpMask($ip, $maskIp, $maskBits)
     {
-        $mask =~ (pow(2, 32-$maskBits)-1);
+        $mask = ~ (pow(2, 32 - $maskBits) - 1);
         if (false === is_int($ip))
         {
             $ip = ip2long($ip);
@@ -260,8 +259,10 @@ class YiiDebugToolbarRoute extends CLogRoute
         if (($ip & $mask) === ($maskIp & $mask))
         {
             return true;
-        } else {
+        } else
+        {
             return false;
         }
     }
+
 }

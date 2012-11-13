@@ -1,153 +1,150 @@
-(function( $ ){
-    var COOKIE_NAME = 'yii-debug-toolbar';
-
-    yiiDebugToolbar = {
-
-        init : function(){
-
-            this.registerEventListeners();
-
-            if ($.cookie(COOKIE_NAME)) {
-                $('#yii-debug-toolbar').hide();
-            } else {
-                $('#yii-debug-toolbar').show();
-            }
-            this.initTabs();
+(function(){
+    
+    'use strict';
+    
+    var root = this;
+    var YiiDebug = root.YiiDebug = {
+        
+        basePath : null,
+        
+        toolbar : null,
+        
+        escaper : /\\|'|\r|\n|\t|\u2028|\u2029/g,
+        
+        escapes : {
+            "'":      "'",
+            '\\':     '\\',
+            '\r':     'r',
+            '\n':     'n',
+            '\t':     't',
+            '\u2028': 'u2028',
+            '\u2029': 'u2029'
         },
-
-        initTabs : function()
-        {
-            $('#yii-debug-toolbar').find('ul.yii-debug-toolbar-tabs li').bind('click', $.proxy( this.toggleTabs, this ));
-            $('.tabscontent').hide();
-
-            var panelId = $('#yii-debug-toolbar').find('ul.yii-debug-toolbar-tabs li.active').attr('type');
-
-            if (typeof panelId !== 'undefined')
-            {
-                var path = panelId.split('-');
-                var panelName = path.pop();
-                var section = path.join('-');
-
-                if($.cookie(section))
-                {
-                    $('#yii-debug-toolbar').find('ul.yii-debug-toolbar-tabs li').removeClass('active');
-                    panelId = section+'-'+$.cookie(section);
-                    $('#'+panelId).show();
-                    $('#yii-debug-toolbar').find('ul.yii-debug-toolbar-tabs li[type='+panelId+']').addClass('active');
-                }
-                else
-                {
-                    $('#'+panelId).show();
-                }
-            }
-
-
+        
+        templateSettings : {
+            evaluate    : /<%([\s\S]+?)%>/g,
+            interpolate : /<%=([\s\S]+?)%>/g,
+            escape      : /<%-([\s\S]+?)%>/g
         },
-
-        toggleTabs : function(e)
-        {
-            e.preventDefault();
-            var $target = $(e.currentTarget);
-            $('.tabscontent').hide();
-            $('#yii-debug-toolbar').find('ul.yii-debug-toolbar-tabs li').removeClass('active');
-
-            var panelId = $target.attr('type');
-            var path = panelId.split('-');
-            var panelName = path.pop();
-            var section = path.join('-');
-
-            $.cookie(section, panelName, {
-                path: '/',
-                expires: 10
+        
+        defaults : function(obj) {
+            this.each(this.slice.call(arguments, 1), function(source) {
+                for (var prop in source) {
+                    if (obj[prop] == null) obj[prop] = source[prop];
+                }
             });
-
-            $('#'+panelId).show();
-            $target.addClass('active');
-
+            return obj;
         },
+        
+        template : function(file, callback) {
+            var self = this;
+            $.get(this.basePath + '/' + file + '.html', function(text, textStatus, jqXHR){
+                callback(self.renderTemplate(text));
+            });
+        },
+        
+        renderTemplate : function(text) {
+            var settings = this.defaults({}, this.templateSettings);
 
-        /**
-         * Toggles the nearby panel section in context of the clicked element
-         */
-        toggleSection: function(toToggle, object) {
-            object = $(object);
-            toToggle = !toToggle ? object.next() : $(toToggle);
-            toToggle.toggle();
-            if(toToggle.is(':visible')) {
-                object.removeClass('collapsed');
+            // Combine delimiters into one regular expression via alternation.
+            var matcher = new RegExp([
+                (settings.escape || noMatch).source,
+                (settings.interpolate || noMatch).source,
+                (settings.evaluate || noMatch).source
+                ].join('|') + '|$', 'g');
+
+            // Compile the template source, escaping string literals appropriately.
+            var index = 0;
+            var source = "__p+='";
+            var escapes = this.escapes;
+            text.replace(matcher, function(match, escape, interpolate, evaluate, offset) {
+                source += text.slice(index, offset)
+                .replace(YiiDebug.escaper, function(match) {
+                    return '\\' + escapes[match];
+                });
+                source +=
+                escape ? "'+\n((__t=(" + escape + "))==null?'':YiiDebug.escape(__t))+\n'" :
+                interpolate ? "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'" :
+                evaluate ? "';\n" + evaluate + "\n__p+='" : '';
+                index = offset + match.length;
+            });
+            source += "';\n";
+
+            // If a variable is not specified, place data values in local scope.
+            if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
+
+            source = "var __t,__p='',__j=Array.prototype.join," +
+            "print=function(){__p+=__j.call(arguments,'');};\n" +
+            source + "return __p;\n";
+
+            try {
+                var render = new Function(settings.variable || 'obj', 'YiiDebug', source);
+            } catch (e) {
+                e.source = source;
+                throw e;
+            }
+
+            var template = function(data) {
+                return render.call(this, data, YiiDebug);
+            };
+
+            // Provide the compiled function source as a convenience for precompilation.
+            template.source = 'function(obj){\n' + source + '}';
+
+            return template;
+        },
+        
+        init : function(basePath)
+        {
+            this.basePath = basePath;
+            this.toolbar = new YiiDebugToolbar(this);
+        },
+        
+        extend : function(obj) {
+            this.each(this.slice.call(arguments, 1), function(source) {
+                for (var prop in source) {
+                    obj[prop] = source[prop];
+                }
+            });
+            return obj;
+        },
+        
+        slice : Array.prototype.slice,
+        
+        each : function(obj, iterator, context) {
+            if (obj == null) return;
+            if (obj.length === +obj.length) {
+                for (var i = 0, l = obj.length; i < l; i++) {
+                    if (iterator.call(context, obj[i], i, obj) === {}) return;
+                }
             } else {
-                object.addClass('collapsed');
+                for (var key in obj) {
+                    if (YiiDebug.has(obj, key)) {
+                        if (iterator.call(context, obj[key], key, obj) === {}) return;
+                    }
+                }
             }
         },
-
-        togglePanel : function(id)
-        {
-            var button = $('.' + id);
-            var panel = $('#' + id);
-
-            if(panel.is(':visible')) {
-                panel.hide();
-                button.removeClass('active');
-                return;
-            }
-
-            this.closeAllPannels();
-            $('#'+id).show();
-            $('.'+id).addClass('active');
-        },
-
-        buttonClicked : function(e)
-        {
-            this.togglePanel($(e.currentTarget).attr('class').split(' ')[1]);
-        },
-
-        closeAllPannels : function()
-        {
-            $('.yii-debug-toolbar-panel').hide();
-            $('.yii-debug-toolbar-button').removeClass('active');
-        },
-
-        closeButtonClicked : function(e)
-        {
-            this.closeAllPannels();
-        },
-
-        toggleToolbar : function(e)
-        {
-            //this.closeButtonClicked(e);
-            if($('#yii-debug-toolbar').is(":visible"))
-            {
-                $('#yii-debug-toolbar').hide();
-                $('#yii-debug-toolbar-switcher a').removeClass('close');
-                $.cookie(COOKIE_NAME, 'hide', {
-                    path: '/',
-                    expires: 10
-                });
-            }
-            else
-            {
-                $('#yii-debug-toolbar').show();
-                $('#yii-debug-toolbar-switcher a').addClass('close');
-                $.cookie(COOKIE_NAME, null, {
-                    path: '/',
-                    expires: -1
-                });
-            }
-        },
-
-        registerEventListeners: function() {
-            $('#yii-debug-toolbar-switcher').bind('click',$.proxy( this.toggleToolbar, this ));
-            $('.yii-debug-toolbar-button').bind('click',$.proxy( this.buttonClicked, this ));
-            $('.yii-debug-toolbar-panel-close').bind('click',$.proxy( this.closeButtonClicked, this ));
-            $('#yii-debug-toolbar .collapsible').bind('click', function(){ yiiDebugToolbar.toggleSection($(this).attr('rel'), this); });
-            $('#yii-debug-toolbar p.collapsible.collapsed').next().hide();
-            $('#yii-debug-toolbar .yii-debug-toolbar-panel-content tbody tr').bind('click', function(){ $(this).toggleClass('selected'); });
-        },
-
-        toggleDetails: function(selector, cell){
-            $(selector).toggleClass('hidden');
+        has : function(obj, key) {
+            return Object.prototype.hasOwnProperty.call(obj, key);
         }
-
     };
-
-})( jQuery );
+    
+    var YiiDebugToolbar = YiiDebug.View = function(app, options) {
+        this.initialize.apply(this, arguments);
+    };
+    
+    YiiDebug.extend(YiiDebugToolbar.prototype, {
+        initialize : function(app) {
+            YiiDebug.template('templates/toolbar', this.render);
+        }, 
+        render : function(template) {
+            $('body').append(template({
+                'title' : 'AAAAAAAAAAAAAAAA'
+            }));
+        }
+    });
+    
+    
+    
+}).call(this);
