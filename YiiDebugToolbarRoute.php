@@ -25,6 +25,7 @@ class YiiDebugToolbarRoute extends CLogRoute
         'YiiDebugToolbarPanelViewsRendering',
         'YiiDebugToolbarPanelSql',
         'YiiDebugToolbarPanelLogging',
+    	'YiiDebugToolbarPanelHybridauth'
     );
 
     /**
